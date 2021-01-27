@@ -93,6 +93,7 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
 		NumTraces:     int(query.SearchDepth),
+		SearchWholeTraces: query.SearchWholeTraces,
 	}
 	traces, err := g.queryService.FindTraces(stream.Context(), &queryParams)
 	if err != nil {

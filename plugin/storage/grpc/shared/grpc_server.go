@@ -118,6 +118,7 @@ func (s *grpcServer) FindTraces(r *storage_v1.FindTracesRequest, stream storage_
 		DurationMin:   r.Query.DurationMin,
 		DurationMax:   r.Query.DurationMax,
 		NumTraces:     int(r.Query.NumTraces),
+		SearchWholeTraces: r.Query.SearchWholeTraces,
 	})
 	if err != nil {
 		return err
@@ -144,6 +145,7 @@ func (s *grpcServer) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceID
 		DurationMin:   r.Query.DurationMin,
 		DurationMax:   r.Query.DurationMax,
 		NumTraces:     int(r.Query.NumTraces),
+		SearchWholeTraces: r.Query.SearchWholeTraces,
 	})
 	if err != nil {
 		return nil, err

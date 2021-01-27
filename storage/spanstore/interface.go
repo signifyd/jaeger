@@ -73,6 +73,7 @@ type TraceQueryParameters struct {
 	DurationMin   time.Duration
 	DurationMax   time.Duration
 	NumTraces     int
+	SearchWholeTraces bool
 }
 
 // OperationQueryParameters contains parameters of query operations, empty spanKind means get operations for all kinds of span.
