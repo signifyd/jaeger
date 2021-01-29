@@ -31,7 +31,7 @@ import (
 )
 
 var errParseInt = `strconv.ParseInt: parsing "string": invalid syntax`
-var errParseBool = `some stupid error`
+var errParseBool = `strconv.ParseBool: parsing "string": invalid syntax`
 
 func TestParseTraceQuery(t *testing.T) {
 	timeNow := time.Now()
@@ -93,11 +93,12 @@ func TestParseTraceQuery(t *testing.T) {
 		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&searchWholeTraces=true`, noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
-					ServiceName:   "service",
-					OperationName: "operation",
-					StartTimeMin:  time.Unix(0, 0),
-					StartTimeMax:  time.Unix(0, 0),
-					NumTraces:     200,
+					ServiceName:       "service",
+					OperationName:     "operation",
+					StartTimeMin:      time.Unix(0, 0),
+					StartTimeMax:      time.Unix(0, 0),
+					NumTraces:         200,
+					Tags:              map[string]string{"k": "v"},
 					SearchWholeTraces: true,
 				},
 			},

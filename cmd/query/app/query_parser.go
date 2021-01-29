@@ -30,17 +30,17 @@ import (
 const (
 	defaultQueryLimit = 100
 
-	operationParam   = "operation"
-	tagParam         = "tag"
-	tagsParam        = "tags"
-	startTimeParam   = "start"
-	limitParam       = "limit"
-	minDurationParam = "minDuration"
-	maxDurationParam = "maxDuration"
-	serviceParam     = "service"
-	spanKindParam    = "spanKind"
-	endTimeParam     = "end"
-	prettyPrintParam = "prettyPrint"
+	operationParam         = "operation"
+	tagParam               = "tag"
+	tagsParam              = "tags"
+	startTimeParam         = "start"
+	limitParam             = "limit"
+	minDurationParam       = "minDuration"
+	maxDurationParam       = "maxDuration"
+	serviceParam           = "service"
+	spanKindParam          = "spanKind"
+	endTimeParam           = "end"
+	prettyPrintParam       = "prettyPrint"
 	searchWholeTracesParam = "searchWholeTraces"
 )
 
@@ -136,14 +136,14 @@ func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 
 	traceQuery := &traceQueryParameters{
 		TraceQueryParameters: spanstore.TraceQueryParameters{
-			ServiceName:   service,
-			OperationName: operation,
-			StartTimeMin:  startTime,
-			StartTimeMax:  endTime,
-			Tags:          tags,
-			NumTraces:     limit,
-			DurationMin:   minDuration,
-			DurationMax:   maxDuration,
+			ServiceName:       service,
+			OperationName:     operation,
+			StartTimeMin:      startTime,
+			StartTimeMax:      endTime,
+			Tags:              tags,
+			NumTraces:         limit,
+			DurationMin:       minDuration,
+			DurationMax:       maxDuration,
 			SearchWholeTraces: searchWholeTraces,
 		},
 		traceIDs: traceIDs,
