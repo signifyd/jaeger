@@ -18,7 +18,7 @@ package eswrapper
 import (
 	"context"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 )
@@ -75,9 +75,6 @@ func (c ClientWrapper) Search(indices ...string) es.SearchService {
 // MultiSearch calls this function to internal client.
 func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	multiSearchService := c.client.MultiSearch()
-	if c.esVersion == 7 {
-		multiSearchService = multiSearchService.RestTotalHitsAsInt(true)
-	}
 	return WrapESMultiSearchService(multiSearchService)
 }
 

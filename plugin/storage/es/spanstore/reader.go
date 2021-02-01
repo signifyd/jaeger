@@ -25,7 +25,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"github.com/opentracing/opentracing-go"
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
@@ -233,7 +233,7 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.S
 
 	var jsonSpan dbmodel.Span
 
-	d := json.NewDecoder(bytes.NewReader(*esSpanInByteArray))
+	d := json.NewDecoder(bytes.NewReader(esSpanInByteArray))
 	d.UseNumber()
 	if err := d.Decode(&jsonSpan); err != nil {
 		return nil, err
@@ -505,12 +505,12 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 		queries := s.buildWholeTraceQueries(traceQuery)
 		resultSets := make([]map[string]bool, len(queries))
 
-		for _, query := range queries {
+		for i, query := range queries {
 			scrollService := s.client.Scroll(jaegerIndices, []string{"traceID"})
 			scrollService.Query(query)
 
 			resultSet := make(map[string]bool)
-			resultSets = append(resultSets, resultSet)
+			resultSets[i] = resultSet
 			for {
 				page, err := scrollService.Do(ctx)
 				if err != nil {
@@ -523,7 +523,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 
 				for _, hit := range page {
 					hitStruct := traceIDHit{}
-					if err := json.Unmarshal(*hit.Source, &hitStruct); err != nil {
+					if err := json.Unmarshal(hit.Source, &hitStruct); err != nil {
 						return nil, fmt.Errorf("search services failed: %w", err)
 					}
 					resultSet[hitStruct.TraceID] = true

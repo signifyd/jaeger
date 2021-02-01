@@ -20,7 +20,7 @@ package mocks
 import (
 	context "context"
 
-	elastic "github.com/olivere/elastic"
+	elastic "github.com/olivere/elastic/v7"
 	mock "github.com/stretchr/testify/mock"
 
 	es "github.com/jaegertracing/jaeger/pkg/es"
