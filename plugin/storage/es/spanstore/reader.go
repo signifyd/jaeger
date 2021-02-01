@@ -640,28 +640,25 @@ func (s *SpanReader) addDurationQueries(traceQuery *spanstore.TraceQueryParamete
 func (s *SpanReader) buildWholeTraceQueries(traceQuery *spanstore.TraceQueryParameters) []elastic.Query {
 	queries := make([]elastic.Query, 0)
 
-	if traceQuery.ServiceName != "" {
-		serviceQuery := elastic.NewBoolQuery()
-		queries = append(queries, serviceQuery)
+	if traceQuery.ServiceName != "" || traceQuery.OperationName != "" {
+		serviceAndOperationQuery := elastic.NewBoolQuery()
+		queries = append(queries, serviceAndOperationQuery)
 
-		s.addDurationQueries(traceQuery, serviceQuery)
+		s.addDurationQueries(traceQuery, serviceAndOperationQuery)
 
-		serviceNameQuery := s.buildServiceNameQuery(traceQuery.ServiceName)
-		serviceQuery.Must(serviceNameQuery)
-	}
+		if traceQuery.ServiceName != "" {
+			serviceQuery := s.buildServiceNameQuery(traceQuery.ServiceName)
+			serviceAndOperationQuery.Must(serviceQuery)
+		}
 
-	if traceQuery.OperationName != "" {
-		operationQuery := elastic.NewBoolQuery()
-		queries = append(queries, operationQuery)
-
-		s.addDurationQueries(traceQuery, operationQuery)
-
-		operationNameQuery := s.buildOperationNameQuery(traceQuery.OperationName)
-		operationQuery.Must(operationNameQuery)
+		if traceQuery.OperationName != "" {
+			operationQuery := s.buildOperationNameQuery(traceQuery.OperationName)
+			serviceAndOperationQuery.Must(operationQuery)
+		}
 	}
 
 	for k, v := range traceQuery.Tags {
-		tagQuery := s.buildTagQuery(k, v)
+		tagQuery := s.buildTagQuery(k, v).MinimumNumberShouldMatch(1)
 		queries = append(queries, tagQuery)
 
 		s.addDurationQueries(traceQuery, tagQuery)
