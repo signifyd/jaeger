@@ -110,14 +110,15 @@ func (s *grpcServer) GetOperations(
 // FindTraces streams traces that match the traceQuery
 func (s *grpcServer) FindTraces(r *storage_v1.FindTracesRequest, stream storage_v1.SpanReaderPlugin_FindTracesServer) error {
 	traces, err := s.Impl.SpanReader().FindTraces(stream.Context(), &spanstore.TraceQueryParameters{
-		ServiceName:   r.Query.ServiceName,
-		OperationName: r.Query.OperationName,
-		Tags:          r.Query.Tags,
-		StartTimeMin:  r.Query.StartTimeMin,
-		StartTimeMax:  r.Query.StartTimeMax,
-		DurationMin:   r.Query.DurationMin,
-		DurationMax:   r.Query.DurationMax,
-		NumTraces:     int(r.Query.NumTraces),
+		ServiceName:       r.Query.ServiceName,
+		OperationName:     r.Query.OperationName,
+		Tags:              r.Query.Tags,
+		StartTimeMin:      r.Query.StartTimeMin,
+		StartTimeMax:      r.Query.StartTimeMax,
+		DurationMin:       r.Query.DurationMin,
+		DurationMax:       r.Query.DurationMax,
+		NumTraces:         int(r.Query.NumTraces),
+		SearchWholeTraces: r.Query.SearchWholeTraces,
 	})
 	if err != nil {
 		return err
@@ -136,14 +137,15 @@ func (s *grpcServer) FindTraces(r *storage_v1.FindTracesRequest, stream storage_
 // FindTraceIDs retrieves traceIDs that match the traceQuery
 func (s *grpcServer) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceIDsRequest) (*storage_v1.FindTraceIDsResponse, error) {
 	traceIDs, err := s.Impl.SpanReader().FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
-		ServiceName:   r.Query.ServiceName,
-		OperationName: r.Query.OperationName,
-		Tags:          r.Query.Tags,
-		StartTimeMin:  r.Query.StartTimeMin,
-		StartTimeMax:  r.Query.StartTimeMax,
-		DurationMin:   r.Query.DurationMin,
-		DurationMax:   r.Query.DurationMax,
-		NumTraces:     int(r.Query.NumTraces),
+		ServiceName:       r.Query.ServiceName,
+		OperationName:     r.Query.OperationName,
+		Tags:              r.Query.Tags,
+		StartTimeMin:      r.Query.StartTimeMin,
+		StartTimeMax:      r.Query.StartTimeMax,
+		DurationMin:       r.Query.DurationMin,
+		DurationMax:       r.Query.DurationMax,
+		NumTraces:         int(r.Query.NumTraces),
+		SearchWholeTraces: r.Query.SearchWholeTraces,
 	})
 	if err != nil {
 		return nil, err

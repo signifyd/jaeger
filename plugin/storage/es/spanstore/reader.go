@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"sort"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"github.com/opentracing/opentracing-go"
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
@@ -231,7 +233,7 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.S
 
 	var jsonSpan dbmodel.Span
 
-	d := json.NewDecoder(bytes.NewReader(*esSpanInByteArray))
+	d := json.NewDecoder(bytes.NewReader(esSpanInByteArray))
 	d.UseNumber()
 	if err := d.Decode(&jsonSpan); err != nil {
 		return nil, err
@@ -457,86 +459,157 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	return nil
 }
 
+type traceIDHit struct {
+	TraceID string
+}
+
+func intersect(sets []map[string]bool) []string {
+	result := make([]string, 0)
+
+	switch len(sets) {
+	case 0:
+	case 1:
+		for k := range sets[0] {
+			result = append(result, k)
+		}
+	default:
+		sort.Slice(sets, func(i, j int) bool {
+			return len(sets[i]) < len(sets[j])
+		})
+
+		for k := range sets[0] {
+			presentInAllSets := true
+			for i := 1; i < len(sets); i++ {
+				_, present := sets[i][k]
+				if !present {
+					presentInAllSets = false
+					break
+				}
+			}
+
+			if presentInAllSets {
+				result = append(result, k)
+			}
+		}
+	}
+
+	return result
+}
+
 func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
 	childSpan, _ := opentracing.StartSpanFromContext(ctx, "findTraceIDs")
 	defer childSpan.Finish()
-	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
-	// {
-	//      "size": 0,
-	//      "query": {
-	//        "bool": {
-	//          "must": [
-	//            { "match": { "operationName":   "op1"      }},
-	//            { "match": { "process.serviceName": "service1" }},
-	//            { "range":  { "startTime": { "gte": 0, "lte": 90000000000000000 }}},
-	//            { "range":  { "duration": { "gte": 0, "lte": 90000000000000000 }}},
-	//            { "should": [
-	//                   { "nested" : {
-	//                      "path" : "tags",
-	//                      "query" : {
-	//                          "bool" : {
-	//                              "must" : [
-	//                              { "match" : {"tags.key" : "tag3"} },
-	//                              { "match" : {"tags.value" : "xyz"} }
-	//                              ]
-	//                          }}}},
-	//                   { "nested" : {
-	//                          "path" : "process.tags",
-	//                          "query" : {
-	//                              "bool" : {
-	//                                  "must" : [
-	//                                  { "match" : {"tags.key" : "tag3"} },
-	//                                  { "match" : {"tags.value" : "xyz"} }
-	//                                  ]
-	//                              }}}},
-	//                   { "nested" : {
-	//                          "path" : "logs.fields",
-	//                          "query" : {
-	//                              "bool" : {
-	//                                  "must" : [
-	//                                  { "match" : {"tags.key" : "tag3"} },
-	//                                  { "match" : {"tags.value" : "xyz"} }
-	//                                  ]
-	//                              }}}},
-	//                   { "bool":{
-	//                           "must": {
-	//                               "match":{ "tags.bat":{ "query":"spook" }}
-	//                           }}},
-	//                   { "bool":{
-	//                           "must": {
-	//                               "match":{ "tag.bat":{ "query":"spook" }}
-	//                           }}}
-	//                ]
-	//              }
-	//          ]
-	//        }
-	//      },
-	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
-	//  }
-	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
-	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
+
 	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, s.indexDateLayout, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	if traceQuery.SearchWholeTraces {
+		queries := s.buildWholeTraceQueries(traceQuery)
+		resultSets := make([]map[string]bool, len(queries))
 
-	searchService := s.client.Search(jaegerIndices...).
-		Size(0). // set to 0 because we don't want actual documents.
-		Aggregation(traceIDAggregation, aggregation).
-		IgnoreUnavailable(true).
-		Query(boolQuery)
+		for i, query := range queries {
+			scrollService := s.client.Scroll(jaegerIndices, []string{"traceID"})
+			scrollService.Query(query)
 
-	searchResult, err := searchService.Do(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("search services failed: %w", err)
-	}
-	if searchResult.Aggregations == nil {
-		return []string{}, nil
-	}
-	bucket, found := searchResult.Aggregations.Terms(traceIDAggregation)
-	if !found {
-		return nil, ErrUnableToFindTraceIDAggregation
-	}
+			resultSet := make(map[string]bool)
+			resultSets[i] = resultSet
+			for {
+				page, err := scrollService.Do(ctx)
+				if err != nil {
+					if err == io.EOF {
+						break
+					} else {
+						return nil, fmt.Errorf("search services failed: %w", err)
+					}
+				}
 
-	traceIDBuckets := bucket.Buckets
-	return bucketToStringArray(traceIDBuckets)
+				for _, hit := range page {
+					hitStruct := traceIDHit{}
+					if err := json.Unmarshal(hit.Source, &hitStruct); err != nil {
+						return nil, fmt.Errorf("search services failed: %w", err)
+					}
+					resultSet[hitStruct.TraceID] = true
+				}
+			}
+		}
+
+		return intersect(resultSets), nil
+	} else {
+		//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
+		// {
+		//      "size": 0,
+		//      "query": {
+		//        "bool": {
+		//          "must": [
+		//            { "match": { "operationName":   "op1"      }},
+		//            { "match": { "process.serviceName": "service1" }},
+		//            { "range":  { "startTime": { "gte": 0, "lte": 90000000000000000 }}},
+		//            { "range":  { "duration": { "gte": 0, "lte": 90000000000000000 }}},
+		//            { "should": [
+		//                   { "nested" : {
+		//                      "path" : "tags",
+		//                      "query" : {
+		//                          "bool" : {
+		//                              "must" : [
+		//                              { "match" : {"tags.key" : "tag3"} },
+		//                              { "match" : {"tags.value" : "xyz"} }
+		//                              ]
+		//                          }}}},
+		//                   { "nested" : {
+		//                          "path" : "process.tags",
+		//                          "query" : {
+		//                              "bool" : {
+		//                                  "must" : [
+		//                                  { "match" : {"tags.key" : "tag3"} },
+		//                                  { "match" : {"tags.value" : "xyz"} }
+		//                                  ]
+		//                              }}}},
+		//                   { "nested" : {
+		//                          "path" : "logs.fields",
+		//                          "query" : {
+		//                              "bool" : {
+		//                                  "must" : [
+		//                                  { "match" : {"tags.key" : "tag3"} },
+		//                                  { "match" : {"tags.value" : "xyz"} }
+		//                                  ]
+		//                              }}}},
+		//                   { "bool":{
+		//                           "must": {
+		//                               "match":{ "tags.bat":{ "query":"spook" }}
+		//                           }}},
+		//                   { "bool":{
+		//                           "must": {
+		//                               "match":{ "tag.bat":{ "query":"spook" }}
+		//                           }}}
+		//                ]
+		//              }
+		//          ]
+		//        }
+		//      },
+		//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
+		//  }
+		aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
+		boolQuery := s.buildFindTraceIDsQuery(traceQuery)
+
+		searchService := s.client.Search(jaegerIndices...).
+			Size(0). // set to 0 because we don't want actual documents.
+			Aggregation(traceIDAggregation, aggregation).
+			IgnoreUnavailable(true).
+			Query(boolQuery)
+
+		searchResult, err := searchService.Do(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("search services failed: %w", err)
+		}
+		if searchResult.Aggregations == nil {
+			return []string{}, nil
+		}
+		bucket, found := searchResult.Aggregations.Terms(traceIDAggregation)
+		if !found {
+			return nil, ErrUnableToFindTraceIDAggregation
+		}
+
+		traceIDBuckets := bucket.Buckets
+		return bucketToStringArray(traceIDBuckets)
+	}
 }
 
 func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregation {
@@ -552,9 +625,7 @@ func (s *SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
 		Field(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryParameters) elastic.Query {
-	boolQuery := elastic.NewBoolQuery()
-
+func (s *SpanReader) addDurationQueries(traceQuery *spanstore.TraceQueryParameters, boolQuery *elastic.BoolQuery) {
 	//add duration query
 	if traceQuery.DurationMax != 0 || traceQuery.DurationMin != 0 {
 		durationQuery := s.buildDurationQuery(traceQuery.DurationMin, traceQuery.DurationMax)
@@ -564,6 +635,42 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryPara
 	//add startTime query
 	startTimeQuery := s.buildStartTimeQuery(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 	boolQuery.Must(startTimeQuery)
+}
+
+func (s *SpanReader) buildWholeTraceQueries(traceQuery *spanstore.TraceQueryParameters) []elastic.Query {
+	queries := make([]elastic.Query, 0)
+
+	if traceQuery.ServiceName != "" || traceQuery.OperationName != "" {
+		serviceAndOperationQuery := elastic.NewBoolQuery()
+		queries = append(queries, serviceAndOperationQuery)
+
+		s.addDurationQueries(traceQuery, serviceAndOperationQuery)
+
+		if traceQuery.ServiceName != "" {
+			serviceQuery := s.buildServiceNameQuery(traceQuery.ServiceName)
+			serviceAndOperationQuery.Must(serviceQuery)
+		}
+
+		if traceQuery.OperationName != "" {
+			operationQuery := s.buildOperationNameQuery(traceQuery.OperationName)
+			serviceAndOperationQuery.Must(operationQuery)
+		}
+	}
+
+	for k, v := range traceQuery.Tags {
+		tagQuery := s.buildTagQuery(k, v).MinimumNumberShouldMatch(1)
+		queries = append(queries, tagQuery)
+
+		s.addDurationQueries(traceQuery, tagQuery)
+	}
+
+	return queries
+}
+
+func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryParameters) elastic.Query {
+	boolQuery := elastic.NewBoolQuery()
+
+	s.addDurationQueries(traceQuery, boolQuery)
 
 	//add process.serviceName query
 	if traceQuery.ServiceName != "" {
@@ -607,7 +714,7 @@ func (s *SpanReader) buildOperationNameQuery(operationName string) elastic.Query
 	return elastic.NewMatchQuery(operationNameField, operationName)
 }
 
-func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
+func (s *SpanReader) buildTagQuery(k string, v string) *elastic.BoolQuery {
 	objectTagListLen := len(objectTagFieldList)
 	queries := make([]elastic.Query, len(nestedTagFieldList)+objectTagListLen)
 	kd := s.spanConverter.ReplaceDot(k)

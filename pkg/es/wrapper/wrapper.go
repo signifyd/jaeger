@@ -18,7 +18,7 @@ package eswrapper
 import (
 	"context"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 )
@@ -75,10 +75,18 @@ func (c ClientWrapper) Search(indices ...string) es.SearchService {
 // MultiSearch calls this function to internal client.
 func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	multiSearchService := c.client.MultiSearch()
-	if c.esVersion == 7 {
-		multiSearchService = multiSearchService.RestTotalHitsAsInt(true)
-	}
 	return WrapESMultiSearchService(multiSearchService)
+}
+
+func (c ClientWrapper) Scroll(indices []string, fields []string) es.ScrollService {
+	scrollService := c.client.Scroll(indices...)
+	scrollService.Size(1000)
+
+	fetchSourceContext := elastic.NewFetchSourceContext(len(fields) > 0)
+	fetchSourceContext.Include(fields...)
+
+	scrollService.FetchSourceContext(fetchSourceContext)
+	return WrapESScrollService(scrollService)
 }
 
 // Close closes ESClient and flushes all data to the storage.
@@ -238,4 +246,30 @@ func (s MultiSearchServiceWrapper) Index(indices ...string) es.MultiSearchServic
 // Do calls this function to internal service.
 func (s MultiSearchServiceWrapper) Do(ctx context.Context) (*elastic.MultiSearchResult, error) {
 	return s.multiSearchService.Do(ctx)
+}
+
+type ScrollServiceWrapper struct {
+	scrollService *elastic.ScrollService
+}
+
+func WrapESScrollService(scrollService *elastic.ScrollService) ScrollServiceWrapper {
+	return ScrollServiceWrapper{scrollService: scrollService}
+}
+
+// Query calls this function to internal service.
+func (s ScrollServiceWrapper) Query(query elastic.Query) es.ScrollService {
+	return WrapESScrollService(s.scrollService.Query(query))
+}
+
+func (s ScrollServiceWrapper) Do(ctx context.Context) ([]*elastic.SearchHit, error) {
+	result, err := s.scrollService.Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Hits.Hits, nil
+}
+
+func (s ScrollServiceWrapper) Clear(ctx context.Context) error {
+	return s.scrollService.Clear(ctx)
 }

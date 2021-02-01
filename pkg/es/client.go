@@ -19,7 +19,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 )
 
 // Client is an abstraction for elastic.Client
@@ -30,6 +30,7 @@ type Client interface {
 	Index() IndexService
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService
+	Scroll(indices []string, fields []string) ScrollService
 	io.Closer
 	GetVersion() uint
 }
@@ -74,4 +75,10 @@ type MultiSearchService interface {
 	Add(requests ...*elastic.SearchRequest) MultiSearchService
 	Index(indices ...string) MultiSearchService
 	Do(ctx context.Context) (*elastic.MultiSearchResult, error)
+}
+
+type ScrollService interface {
+	Query(query elastic.Query) ScrollService
+	Do(ctx context.Context) ([]*elastic.SearchHit, error)
+	Clear(ctx context.Context) error
 }

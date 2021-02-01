@@ -13,7 +13,6 @@ require (
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/fatih/color v1.9.0 // indirect
-	github.com/fortytw2/leaktest v1.3.0 // indirect
 	github.com/frankban/quicktest v1.7.3 // indirect
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/go-kit/kit v0.10.0 // indirect
@@ -42,13 +41,12 @@ require (
 	github.com/mitchellh/mapstructure v1.2.2 // indirect
 	github.com/mjibson/esc v0.2.0
 	github.com/oklog/run v1.1.0 // indirect
-	github.com/olivere/elastic v6.2.27+incompatible
+	github.com/olivere/elastic/v7 v7.0.22
 	github.com/opentracing-contrib/go-grpc v0.0.0-20191001143057-db30781987df
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
-	github.com/opentracing/opentracing-go v1.1.0
+	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pelletier/go-toml v1.6.0 // indirect
 	github.com/pierrec/lz4 v2.4.1+incompatible // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.5.1
 	github.com/prometheus/common v0.10.0 // indirect
 	github.com/prometheus/procfs v0.1.3 // indirect

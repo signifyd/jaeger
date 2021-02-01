@@ -31,6 +31,7 @@ import (
 )
 
 var errParseInt = `strconv.ParseInt: parsing "string": invalid syntax`
+var errParseBool = `strconv.ParseBool: parsing "string": invalid syntax`
 
 func TestParseTraceQuery(t *testing.T) {
 	timeNow := time.Now()
@@ -44,6 +45,7 @@ func TestParseTraceQuery(t *testing.T) {
 		{"x?service=service&start=string", errParseInt, nil},
 		{"x?service=service&end=string", errParseInt, nil},
 		{"x?service=service&limit=string", errParseInt, nil},
+		{"x?service=service&searchWholeTraces=string", errParseBool, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20", `cannot not parse minDuration: time: missing unit in duration "?20"?$`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30", `cannot not parse maxDuration: time: missing unit in duration "?30"?$`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y&tag=k&log=k:v&log=k", `malformed 'tag' parameter, expecting key:value, received: k`, nil},
@@ -85,6 +87,19 @@ func TestParseTraceQuery(t *testing.T) {
 					StartTimeMax:  time.Unix(0, 0),
 					NumTraces:     200,
 					Tags:          map[string]string{"k": "v", "x": "y"},
+				},
+			},
+		},
+		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&searchWholeTraces=true`, noErr,
+			&traceQueryParameters{
+				TraceQueryParameters: spanstore.TraceQueryParameters{
+					ServiceName:       "service",
+					OperationName:     "operation",
+					StartTimeMin:      time.Unix(0, 0),
+					StartTimeMax:      time.Unix(0, 0),
+					NumTraces:         200,
+					Tags:              map[string]string{"k": "v"},
+					SearchWholeTraces: true,
 				},
 			},
 		},

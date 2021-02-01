@@ -29,7 +29,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 

@@ -136,6 +136,22 @@ func (_m *Client) MultiSearch() es.MultiSearchService {
 	return r0
 }
 
+// Scroll provides a mock function with given fields: indices, fields
+func (_m *Client) Scroll(indices []string, fields []string) es.ScrollService {
+	ret := _m.Called(indices, fields)
+
+	var r0 es.ScrollService
+	if rf, ok := ret.Get(0).(func([]string, []string) es.ScrollService); ok {
+		r0 = rf(indices, fields)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(es.ScrollService)
+		}
+	}
+
+	return r0
+}
+
 // Search provides a mock function with given fields: indices
 func (_m *Client) Search(indices ...string) es.SearchService {
 	_va := make([]interface{}, len(indices))

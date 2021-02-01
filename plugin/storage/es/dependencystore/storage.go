@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -99,7 +99,7 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 	for _, hit := range hits {
 		source := hit.Source
 		var tToD dbmodel.TimeDependencies
-		if err := json.Unmarshal(*source, &tToD); err != nil {
+		if err := json.Unmarshal(source, &tToD); err != nil {
 			return nil, errors.New("unmarshalling ElasticSearch documents failed")
 		}
 		retDependencies = append(retDependencies, tToD.Dependencies...)
